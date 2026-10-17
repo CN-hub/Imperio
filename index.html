@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Império Tintas e Revestimentos - Sistema Integrado</title>
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('imperio_tema')||'light')}catch(e){}</script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -160,18 +160,19 @@ const badge=(t,c)=>`<span class="badge" style="color:${c};border-color:${c}55;ba
 const stBadge=s=>badge(s,STC[s]||'#3b82f6');
 let toastT;
 function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className='toast on '+(err?'err':'grad');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),3200)}
+function libOk(nome,ok){if(!ok)toast(`A biblioteca de ${nome} não carregou. Conecte-se à internet e recarregue a página.`,true);return !!ok}
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 const stamp=()=>{const d=new Date();return `${isoLocal(d)}_${pad(d.getHours())}h${pad(d.getMinutes())}`};
 
 /* ================= Banco de dados (localStorage) ================= */
-const SEED_PROD=[['1','CRISTAL BRILHO NATURAL','Cristal Brilho',244.15],['16','CRISTAL BRILHO DUBAI','Cristal Brilho',255.6],['53','DIAMANTE NOBRE NATURAL','Diamante Nobre',313.05],['59','DIAMANTE NOBRE PRETO','Diamante Nobre',353.95],['27','DIAMANTE NOBRE PLUS ARENITO','Diamante Nobre Plus',376.25],['102','GRAFFINO ROYAL NATURAL','Graffino Royal',154.8],['47','GRAFFINO ROYAL MARFIM','Graffino Royal',154.8],['69','TEXTURA RUSTICA NATURAL','Textura Rústica',101.35],['308','EFEITO FULGET LAGO ROSA','Efeito Fulget',297.5],['241','FUNDO PREPARADOR CONCENTRADO 900ML','Fundo Preparador',28.2],['1504','ADITIVOS BRILHO GRANDE PRATA','Aditivos',500.45],['1860','MANTA LIQUIDA GRANDE','Manta Líquida',439.95]];
+const SEED_PROD=[['1','CRISTAL BRILHO NATURAL','Cristal Brilho',244.15],['16','CRISTAL BRILHO DUBAI','Cristal Brilho',255.6],['53','DIAMANTE NOBRE NATURAL','Diamante Nobre',313.05],['59','DIAMANTE NOBRE PRETO','Diamante Nobre',353.95],['27','DIAMANTE NOBRE PLUS ARENITO','Diamante Nobre Plus',376.25],['102','GRAFFINO ROYAL NATURAL','Graffino Royal',154.8],['47','GRAFFINO ROYAL MARFIM','Graffino Royal',154.8],['69','TEXTURA RUSTICA NATURAL','Textura Rústica',101.35],['308','EFEITO FULGET LAGO ROSA','Efeito Fulget',297.5],['241','FUNDO PREPARADOR CONCENTRADO 900ML','Fundo Preparador',28.2],['1504','ADITIVOS BRILHO GRANDE PRATA','Aditivos',500.45],['1860','MANTA LIQUIDA GRANDE','Manta Líquida',439.95],['17','CRISTAL BRILHO BRILHANTE RED','Cristal Brilho',255.6],['18','CRISTAL BRILHO POMERIGGIO','Cristal Brilho',255.6],['395','CRISTAL BRILHO ONIX','Cristal Brilho',255.6],['139','EFEITO FULGET AÇO CORTEN','Efeito Fulget',341.8],['625','BROCAL IMPORTADO PRATA','Brocal',20.6]];
 const SEED_COR=[['C01','Branco','#ffffff'],['C02','Preto','#000000'],['C03','Azul Royal','#1e40af'],['C04','Verde Musgo','#4d7c0f'],['C05','Vermelho Fogo','#dc2626'],['C06','Amarelo Ouro','#facc15'],['C07','Cinza Chumbo','#4b5563'],['C08','Bege Areia','#d6c7a1'],['C09','Terracota','#c2410c'],['C10','Marfim','#fef3c7']];
 const defaultDB=()=>({versao:3,users:[],produtos:[],cores:[],clientes:[],fornecedores:[],fretes:[],representantes:[],movs:[],pedidos:[],draft:null,
   config:{empresa:'IMPÉRIO TINTAS E REVESTIMENTOS',icmsAtivo:true,icmsAliq:7,comPerc:5,lucroPerc:21,mcPerc:21,orient:'portrait',lastBackup:null}});
 let db=defaultDB();
-function loadDB(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);db=Object.assign(defaultDB(),d);db.config=Object.assign(defaultDB().config,d.config||{});return true}}catch(e){console.warn(e)}return false}
+function loadDB(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);db=Object.assign(defaultDB(),d);db.config=Object.assign(defaultDB().config,d.config||{});migrarDB(db);return true}}catch(e){console.warn(e)}return false}
 let saveT;
-function saveNow(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('Falha ao salvar (armazenamento cheio?). Faça um backup agora!',true)}}
+function saveNow(){if(window.__zerando)return;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('Falha ao salvar (armazenamento cheio?). Faça um backup agora!',true)}}
 function save(){clearTimeout(saveT);saveT=setTimeout(saveNow,250)}
 window.addEventListener('beforeunload',saveNow);
 
@@ -202,7 +203,7 @@ function renderLogin(){
       const nome=$('#ln').value.trim(), salt=uid()+uid();
       const rep={id:uid(),nome};db.representantes.push(rep);
       db.users.push({id:uid(),nome,login,salt,hash:await hashPw(pw,salt),role:'admin',repNome:nome});
-      if($('#lseed').checked){SEED_PROD.forEach(p=>db.produtos.push({id:uid(),codigo:p[0],nome:p[1],categoria:p[2],preco:p[3],comAtiva:true,comPerc:5,controlaEstoque:false,estoqueInicial:0,estoqueMin:0}));SEED_COR.forEach(c=>db.cores.push({id:uid(),codigo:c[0],nome:c[1],hex:c[2],ref:'Padrão'}))}
+      if($('#lseed').checked){SEED_PROD.forEach(p=>db.produtos.push({id:uid(),codigo:p[0],nome:p[1],categoria:p[2],preco:p[3],comModo:'geral',comPerc:5,controlaEstoque:false,estoqueInicial:0,estoqueMin:0}));SEED_COR.forEach(c=>db.cores.push({id:uid(),codigo:c[0],nome:c[1],hex:c[2],ref:'Padrão'}))}
       saveNow();
     }
     if(Date.now()<lockUntil){err.textContent=`Muitas tentativas. Aguarde ${Math.ceil((lockUntil-Date.now())/1000)}s.`;return}
@@ -225,7 +226,12 @@ function calc(d){
   const entrada=r2(Math.min(Math.max(num(d.entrada),0),total));
   return {sub,descP,descV,base,aliq,imposto,total,entrada,saldo:r2(total-entrada)};
 }
-function comissaoPedido(p){const f=p.subtotal>0?p.base/p.subtotal:1;return r2(p.itens.reduce((s,i)=>s+i.total*f*(num(i.comPerc)/100),0))}
+const taxaGeral=()=>clamp(db.config.comPerc);
+function taxaProduto(pr){const m=pr.comModo||'geral';return m==='nenhuma'?0:m==='propria'?clamp(pr.comPerc):taxaGeral()}
+function taxaItem(i){const pr=db.produtos.find(x=>x.id===i.produtoId);return pr?taxaProduto(pr):taxaGeral()}
+function comissaoPedido(p){const f=p.subtotal>0?p.base/p.subtotal:1;return r2(p.itens.reduce((s,i)=>s+i.total*f*(taxaItem(i)/100),0))}
+function migrarDB(d){(d.produtos||[]).forEach(p=>{if(!p.comModo){p.comModo=p.comAtiva===false?'nenhuma':(num(p.comPerc)!==num((d.config||{}).comPerc==null?5:d.config.comPerc)?'propria':'geral')}delete p.comAtiva});
+  (d.pedidos||[]).forEach(p=>{delete p.comissao;(p.itens||[]).forEach(i=>{delete i.comPerc})});return d}
 const lucroPedido=p=>r2(p.base*num(db.config.lucroPerc)/100);
 function saldoEstoque(prod){let s=num(prod.estoqueInicial);db.movs.forEach(m=>{if(m.produtoId===prod.id)s+=m.tipo==='entrada'?m.qtd:-m.qtd});db.pedidos.forEach(p=>{if(p.status==='Cancelado')return;p.itens.forEach(i=>{if(i.produtoId===prod.id)s-=i.qtd})});return s}
 const qtdNoPedido=(p,pid)=>!p||p.status==='Cancelado'?0:p.itens.filter(i=>i.produtoId===pid).reduce((s,i)=>s+i.qtd,0);
@@ -319,7 +325,7 @@ VIEWS.pedido={html(){
   return `<div class="banner"><i class="fas fa-${ed?'pen-to-square':'file-invoice'}" style="font-size:1.6rem;color:var(--gold)"></i><div><small>${ed?'Editando pedido':'Próximo pedido'}</small><div class="num">#${ed?ed.numero:nextNum()}</div></div>
    <div style="flex:1"></div>${ed?`<button class="btn b-o" data-act="cancelEdit"><i class="fas fa-times"></i> Cancelar edição</button>`:''}</div>
   <div class="card"><h3><i class="fas fa-building"></i> Cliente, representante e pagamento</h3>
-   <div class="row"><div class="fg"><label>Cliente *</label><select data-d="clienteId"><option value="">Selecione…</option>${opts(db.clientes,draft.clienteId,c=>c.id,c=>c.nome+(c.cnpj?' — '+c.cnpj:''))}</select></div>
+   <div class="row"><div class="fg"><label>Cliente *</label><select data-d="clienteId"><option value="">Selecione…</option>${ed&&draft.clienteId==='__snap__'?`<option value="__snap__" selected>${esc(ed.clienteSnap.nome)} (cadastro removido)</option>`:''}${opts(db.clientes,draft.clienteId,c=>c.id,c=>c.nome+(c.cnpj?' — '+c.cnpj:''))}</select></div>
     <div class="fg"><label>Representante *</label><select data-d="repNome" ${isAdmin()?'':'disabled'}>${opts(db.representantes,draft.repNome,r=>r.nome,r=>r.nome)}</select></div>
     <div class="fg"><label>Status</label><select data-d="status">${opts(STATUS,draft.status)}</select></div></div>
    <div class="row"><div class="fg"><label>Forma / parcelamento</label><select data-d="parc">${opts(Object.keys(PARC),draft.parc)}</select></div>
@@ -368,7 +374,7 @@ function addItem(){
   if(draft.itens.length>=30)return toast('Limite de 30 itens por pedido.',true);
   const ed=draft.editId?db.pedidos.find(x=>x.id===draft.editId):null;
   if(p.controlaEstoque){const disp=saldoEstoque(p)+qtdNoPedido(ed,p.id)-draft.itens.filter(i=>i.produtoId===p.id).reduce((s,i)=>s+i.qtd,0);if(qtd>disp&&!confirm(`Estoque disponível de "${p.nome}": ${disp}. Adicionar ${qtd} mesmo assim?`))return}
-  draft.itens.push({produtoId:p.id,codigo:p.codigo,nome:p.nome,categoria:p.categoria,corCod:$('#iCor').value||'',qtd,unit,total:r2(qtd*unit),comPerc:p.comAtiva?num(p.comPerc):0});
+  draft.itens.push({produtoId:p.id,codigo:p.codigo,nome:p.nome,categoria:p.categoria,corCod:$('#iCor').value||'',qtd,unit,total:r2(qtd*unit)});
   persistDraft();renderItens();$('#iProd').value='';$('#iCor').value='';$('#iQtd').value=1;$('#iUnit').value='';
 }
 function editItem(i){const it=draft.itens[i];if(!it)return;
@@ -379,7 +385,8 @@ function editItem(i){const it=draft.itens[i];if(!it)return;
   $('#eOk').onclick=()=>{it.qtd=Math.max(1,parseInt($('#eQtd').value,10)||1);it.unit=r2(num($('#eUnit').value));it.total=r2(it.qtd*it.unit);it.corCod=$('#eCor').value;persistDraft();closeModal();renderItens()}}
 function finalizar(){
   const d=draft;if(!d.itens.length)return toast('Adicione ao menos um item.',true);
-  const cli=db.clientes.find(c=>c.id===d.clienteId);if(!cli)return toast('Selecione o cliente.',true);
+  const ed0=d.editId?db.pedidos.find(p=>p.id===d.editId):null;
+  const cli=d.clienteId==='__snap__'&&ed0?Object.assign({id:ed0.clienteId||''},ed0.clienteSnap):db.clientes.find(c=>c.id===d.clienteId);if(!cli)return toast('Selecione o cliente.',true);
   if(!d.repNome)return toast('Selecione o representante.',true);
   const t=calc(d), ed=d.editId?db.pedidos.find(p=>p.id===d.editId):null;
   if(d.editId&&!ed){toast('O pedido em edição não existe mais.',true);draft=newDraft();persistDraft();return go('pedido')}
@@ -391,13 +398,13 @@ function finalizar(){
   const p={id:ed?ed.id:uid(),numero:ed?ed.numero:nextNum(),data:ed?ed.data:hoje(),hora:ed?ed.hora:now.toLocaleTimeString('pt-BR'),criadoPor:ed?ed.criadoPor:user.id,
    clienteId:cli.id,clienteSnap:{nome:cli.nome,cnpj:cli.cnpj||'',inscricao:cli.inscricao||'',telefone:cli.telefone||'',cidade:cli.cidade||''},repNome:d.repNome,status:d.status,parcelamento:d.parc,venc:d.venc||'',obsPag:d.obsPag.trim(),obs:d.obs.trim(),
    itens:JSON.parse(JSON.stringify(d.itens)),desc:t.descP,entrada:t.entrada,icmsAtivo:d.icmsAtivo,icmsAliq:t.aliq,subtotal:t.sub,descValor:t.descV,base:t.base,imposto:t.imposto,total:t.total,saldo:t.saldo};
-  p.comissao=comissaoPedido(p);p.parcelas=gerarParcelas(p,ed&&ed.parcelas);
+  p.parcelas=gerarParcelas(p,ed&&ed.parcelas);
   if(ed)db.pedidos[db.pedidos.indexOf(ed)]=p;else db.pedidos.push(p);
   draft=newDraft();db.draft=null;saveNow();toast(ed?`Pedido #${p.numero} atualizado!`:`Pedido #${p.numero} finalizado!`);go('historico');
 }
 function carregarEdicao(id){const p=db.pedidos.find(x=>x.id===id);if(!p)return;
   if(draft.itens.length&&!draft.editId&&!confirm('Há um pedido em andamento no formulário. Descartá-lo para editar este?'))return;
-  draft={itens:JSON.parse(JSON.stringify(p.itens)),clienteId:p.clienteId,repNome:p.repNome,status:p.status,parc:p.parcelamento,venc:p.venc||'',obsPag:p.obsPag||'',obs:p.obs||'',desc:p.desc,entrada:p.entrada,icmsAtivo:p.icmsAtivo,icmsAliq:p.icmsAliq||db.config.icmsAliq,editId:p.id};
+  draft={itens:JSON.parse(JSON.stringify(p.itens)),clienteId:db.clientes.some(c=>c.id===p.clienteId)?p.clienteId:'__snap__',repNome:p.repNome,status:p.status,parc:p.parcelamento,venc:p.venc||'',obsPag:p.obsPag||'',obs:p.obs||'',desc:p.desc,entrada:p.entrada,icmsAtivo:p.icmsAtivo,icmsAliq:p.icmsAliq||db.config.icmsAliq,editId:p.id};
   persistDraft();go('pedido')}
 function duplicar(id){const p=db.pedidos.find(x=>x.id===id);if(!p)return;
   if(draft.itens.length&&!confirm('Descartar o pedido em andamento no formulário?'))return;
@@ -457,18 +464,25 @@ VIEWS.estoque={html(){
 /* ---------- Comissões ---------- */
 VIEWS.comissoes={html(){
   const anos=[...new Set(pedidosVisiveis().map(p=>p.data.slice(0,4)))].sort().reverse();
-  return `<div class="kpis" id="cK"></div>
+  const cfg=isAdmin()?`<div class="card"><h3><i class="fas fa-percent"></i> Taxas de comissão e lucro</h3>
+   <div class="row"><div class="fg"><label>Comissão geral (% sobre o valor sem ICMS)</label><div style="display:flex;gap:10px;align-items:center"><input type="range" id="rgCom" min="0" max="100" step="0.5" value="${taxaGeral()}" style="padding:0"><input type="number" id="nmCom" min="0" max="100" step="0.01" value="${taxaGeral()}" style="max-width:110px"></div></div>
+    <div class="fg"><label>Lucro estimado (% sobre o valor sem ICMS)</label><div style="display:flex;gap:10px;align-items:center"><input type="range" id="rgLuc" min="0" max="100" step="0.5" value="${clamp(db.config.lucroPerc)}" style="padding:0"><input type="number" id="nmLuc" min="0" max="100" step="0.01" value="${clamp(db.config.lucroPerc)}" style="max-width:110px"></div></div></div>
+   <div class="acts"><button class="btn b-p" data-act="aplicarCom"><i class="fas fa-check"></i> Aplicar aos cálculos</button></div>
+   <div class="note">A taxa geral vale para todos os produtos marcados como “Usar a taxa geral” e recalcula todas as vendas, inclusive as antigas. Produtos com taxa própria ou sem comissão são configurados em Produtos.</div></div>`:'';
+  return `${cfg}<div class="kpis" id="cK"></div>
   <div class="card"><h3><i class="fas fa-filter"></i> Filtros</h3><div class="fbar"><input id="cQ" placeholder="🔍 Cliente ou nº…">${isAdmin()?`<select id="cR"><option value="">Todos os representantes</option>${opts(db.representantes,'',r=>r.nome,r=>r.nome)}</select>`:''}
    <select id="cA"><option value="">Todos os anos</option>${opts(anos,'')}</select><select id="cM"><option value="">Todos os meses</option>${MESES.map((m,i)=>`<option value="${pad(i+1)}">${m}</option>`).join('')}</select></div>
-   <div class="note">Pedidos cancelados não entram. A comissão usa o percentual de cada produto (definido no cadastro) sobre o valor <b>sem ICMS</b> e com desconto aplicado. O lucro usa ${pct(db.config.lucroPerc)} da base (ajustável em Configurações).</div></div>
+   <div class="note">Pedidos cancelados não entram. A comissão é de <b>${pct(taxaGeral())}</b> (taxa geral) sobre o valor <b>sem ICMS</b> e já com o desconto aplicado, salvo produtos com taxa própria ou sem comissão. O lucro estimado usa ${pct(db.config.lucroPerc)} da mesma base.</div></div>
   <div class="grid2"><div class="card"><h3><i class="fas fa-chart-line"></i> Vendas e comissão por mês</h3><div class="chart"><canvas id="gM"></canvas></div></div><div class="card"><h3><i class="fas fa-chart-bar"></i> Comissão por representante</h3><div class="chart"><canvas id="gR"></canvas></div></div></div>
   <div class="card"><h3><i class="fas fa-ranking-star"></i> Ranking de representantes</h3><div class="tw"><table><thead><tr><th>#</th><th>Representante</th><th class="n">Vendas c/ ICMS</th><th class="n">Base s/ ICMS</th><th class="n">Pedidos</th><th class="n">Ticket médio</th><th class="n">Comissão</th><th class="n">Lucro est.</th></tr></thead><tbody id="cRk"></tbody></table></div></div>
   <div class="card"><h3><i class="fas fa-list-alt"></i> Detalhamento</h3><div class="tw"><table><thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Representante</th><th class="n">Total</th><th class="n">Base</th><th class="n">Comissão</th><th class="n">Lucro</th><th>Status</th></tr></thead><tbody id="cB"></tbody></table></div>
    <div class="acts" style="margin-top:14px"><button class="btn b-s" data-act="expCSV"><i class="fas fa-file-csv"></i> CSV</button><button class="btn b-s" data-act="expXLS"><i class="fas fa-file-excel"></i> Excel</button><button class="btn b-d" data-act="expPDF"><i class="fas fa-file-pdf"></i> PDF</button></div></div>`},
- after(){['cQ','cR','cA','cM'].forEach(id=>{const e=$('#'+id);if(e)e.oninput=comTable});comTable()}};
+ after(){['cQ','cR','cA','cM'].forEach(id=>{const e=$('#'+id);if(e)e.oninput=comTable});
+  [['rgCom','nmCom'],['rgLuc','nmLuc']].forEach(([a,b])=>{const A=$('#'+a),B=$('#'+b);if(!A)return;A.oninput=()=>B.value=A.value;B.oninput=()=>{A.value=clamp(B.value)}});comTable()}};
+function aplicarComissao(){const c=clamp($('#nmCom').value),l=clamp($('#nmLuc').value);db.config.comPerc=c;db.config.lucroPerc=l;saveNow();toast(`Comissão de ${pct(c)} e lucro de ${pct(l)} aplicados.`);go('comissoes')}
 function comFiltradas(){const q=($('#cQ').value||'').toLowerCase(),r=$('#cR')?$('#cR').value:'',a=$('#cA').value,m=$('#cM').value;
   return validos(pedidosVisiveis()).filter(p=>(!r||p.repNome===r)&&(!a||p.data.slice(0,4)===a)&&(!m||p.data.slice(5,7)===m)&&(!q||`#${p.numero} ${p.clienteSnap.nome}`.toLowerCase().includes(q))).sort((x,y)=>y.numero-x.numero)}
-const comissaoDe=p=>p.comissao!==undefined?p.comissao:comissaoPedido(p);
+const comissaoDe=comissaoPedido;
 function comTable(){
   const L=comFiltradas(),T=(f)=>r2(L.reduce((s,p)=>s+f(p),0)),h=hoje(),ano=h.slice(0,4),mes=h.slice(0,7);
   const all=validos(pedidosVisiveis());
@@ -486,8 +500,10 @@ function comTable(){
 function linhasCom(){return comFiltradas().map(p=>[`#${p.numero}`,br(p.data),p.clienteSnap.nome,p.repNome,p.total,p.base,comissaoDe(p),lucroPedido(p),p.status])}
 const HEAD_COM=['Nº','Data','Cliente','Representante','Total c/ ICMS','Base s/ ICMS','Comissão','Lucro','Status'];
 function expCSV(){const q=v=>`"${String(v).replace(/"/g,'""')}"`;const L=linhasCom();let s=HEAD_COM.join(';')+'\n'+L.map(r=>r.map((v,i)=>i>=4&&i<=7?num(v).toFixed(2).replace('.',','):q(v)).join(';')).join('\n');download(new Blob(['\uFEFF'+s],{type:'text/csv;charset=utf-8'}),`comissoes_${stamp()}.csv`)}
-function expXLS(){const L=linhasCom();const ws=XLSX.utils.aoa_to_sheet([HEAD_COM,...L,[],['TOTAL','','','',L.reduce((s,r)=>s+r[4],0),L.reduce((s,r)=>s+r[5],0),L.reduce((s,r)=>s+r[6],0),L.reduce((s,r)=>s+r[7],0),'']]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Vendas');XLSX.writeFile(wb,`comissoes_${stamp()}.xlsx`)}
-function expPDF(){const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'}),L=linhasCom();
+function expXLS(){if(!libOk('Excel',typeof XLSX!=='undefined'))return;try{_expXLS()}catch(e){toast('Erro ao gerar Excel: '+e.message,true)}}
+function _expXLS(){const L=linhasCom();const ws=XLSX.utils.aoa_to_sheet([HEAD_COM,...L,[],['TOTAL','','','',L.reduce((s,r)=>s+r[4],0),L.reduce((s,r)=>s+r[5],0),L.reduce((s,r)=>s+r[6],0),L.reduce((s,r)=>s+r[7],0),'']]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Vendas');XLSX.writeFile(wb,`comissoes_${stamp()}.xlsx`)}
+function expPDF(){if(!libOk('PDF',window.jspdf&&window.jspdf.jsPDF))return;try{_expPDF()}catch(e){toast('Erro ao gerar PDF: '+e.message,true)}}
+function _expPDF(){const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'}),L=linhasCom();
   doc.setFontSize(14);doc.text(`Comissões e Vendas — ${db.config.empresa}`,10,14);doc.setFontSize(8);doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} • Base sem ICMS`,10,19);
   doc.autoTable({startY:23,head:[HEAD_COM],body:L.map(r=>r.map((v,i)=>i>=4&&i<=7?fmt(v):v)),foot:[['TOTAL','','','',fmt(L.reduce((s,r)=>s+r[4],0)),fmt(L.reduce((s,r)=>s+r[5],0)),fmt(L.reduce((s,r)=>s+r[6],0)),fmt(L.reduce((s,r)=>s+r[7],0)),'']],styles:{fontSize:8},headStyles:{fillColor:[59,84,224],textColor:[255,255,255]},footStyles:{fillColor:[18,24,41],textColor:[255,255,255]}});
   doc.save(`comissoes_${stamp()}.pdf`)}
@@ -495,6 +511,7 @@ function expPDF(){const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:'landsca
 /* ---------- PDF do pedido ---------- */
 function pdfPedido(id){
   const p=db.pedidos.find(x=>x.id===id);if(!p)return;
+  if(!libOk('PDF',window.jspdf&&window.jspdf.jsPDF))return;
   try{const {jsPDF}=window.jspdf,doc=new jsPDF({orientation:db.config.orient,unit:'mm',format:'a5'}),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),M=6;
   const banner=()=>{doc.setFillColor(18,24,41);doc.rect(0,0,W,12,'F');doc.setFillColor(59,84,224);doc.rect(0,0,2.5,12,'F');doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('IMPÉRIO',M+2,6);doc.setFontSize(4.5);doc.setTextColor(170,180,210);doc.text('R E V E S T I M E N T O S',M+2,9.5);doc.setFontSize(5.5);doc.setTextColor(210,210,220);doc.text(`Representante: ${p.repNome}`,W-M,5.5,{align:'right'});doc.text(`Emitido: ${new Date().toLocaleString('pt-BR')}`,W-M,9,{align:'right'})};
   banner();let y=18;doc.setTextColor(30,30,50);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text(`COMPROVANTE DE PEDIDO #${p.numero}`,M,y);doc.setFont('helvetica','normal');doc.setFontSize(7);doc.text(`${br(p.data)} ${p.hora||''}  •  ${p.status}`,W-M,y,{align:'right'});y+=3;
@@ -513,8 +530,8 @@ function pdfPedido(id){
 
 /* ---------- Cadastros genéricos ---------- */
 const ENT={
- produtos:{s:'Produto',f:[{k:'codigo',l:'Código',req:1,uniq:1},{k:'nome',l:'Nome',req:1},{k:'categoria',l:'Categoria',t:'cat',req:1},{k:'preco',l:'Preço (R$)',t:'number',req:1,step:.01},{k:'comAtiva',l:'Pagar comissão neste produto',t:'bool',def:true},{k:'comPerc',l:'Comissão (%)',t:'number',step:.01,def:()=>db.config.comPerc},{k:'controlaEstoque',l:'Controlar estoque',t:'bool',def:false},{k:'estoqueInicial',l:'Estoque inicial',t:'number',def:0},{k:'estoqueMin',l:'Estoque mínimo (alerta)',t:'number',def:0}],
-  cols:[['Código',r=>`<strong>${esc(r.codigo)}</strong>`],['Nome',r=>esc(r.nome)],['Categoria',r=>esc(r.categoria)],['Preço',r=>fmt(r.preco)],['Comissão',r=>r.comAtiva&&num(r.comPerc)>0?badge(pct(r.comPerc)+' ('+fmt(r.preco*r.comPerc/100)+')','#10b981'):badge('Não aplica','#8a7a5a')],['Estoque',r=>r.controlaEstoque?`<strong>${saldoEstoque(r)}</strong>`:'—']]},
+ produtos:{s:'Produto',f:[{k:'codigo',l:'Código',req:1,uniq:1},{k:'nome',l:'Nome',req:1},{k:'categoria',l:'Categoria',t:'cat',req:1},{k:'preco',l:'Preço (R$)',t:'number',req:1,step:.01},{k:'comModo',l:'Comissão deste produto',t:'sel',o:[['geral','Usar a taxa geral'],['propria','Taxa própria'],['nenhuma','Sem comissão']],def:'geral'},{k:'comPerc',l:'Taxa própria (%)',t:'number',step:.01,def:()=>taxaGeral()},{k:'controlaEstoque',l:'Controlar estoque',t:'bool',def:false},{k:'estoqueInicial',l:'Estoque inicial',t:'number',def:0},{k:'estoqueMin',l:'Estoque mínimo (alerta)',t:'number',def:0}],
+  cols:[['Código',r=>`<strong>${esc(r.codigo)}</strong>`],['Nome',r=>esc(r.nome)],['Categoria',r=>esc(r.categoria)],['Preço',r=>fmt(r.preco)],['Comissão',r=>{const m=r.comModo||'geral',t=taxaProduto(r);return m==='nenhuma'?badge('Sem comissão','#7C86A0'):badge(`${pct(t)} (${fmt(r.preco*t/100)}) • ${m==='geral'?'taxa geral':'própria'}`,m==='geral'?'#3B54E0':'#12805F')}],['Estoque',r=>r.controlaEstoque?`<strong>${saldoEstoque(r)}</strong>`:'—']]},
  cores:{s:'Cor',f:[{k:'codigo',l:'Código',req:1,uniq:1},{k:'nome',l:'Nome',req:1},{k:'hex',l:'Cor visual',t:'color',def:'#3b82f6'},{k:'ref',l:'Referência / linha'}],cols:[['Prévia',r=>`<span class="cor-dot" style="background:${esc(r.hex)};width:22px;height:22px"></span>`],['Código',r=>`<strong>${esc(r.codigo)}</strong>`],['Nome',r=>esc(r.nome)],['Referência',r=>esc(r.ref||'-')],['HEX',r=>esc(r.hex)]]},
  clientes:{s:'Cliente',f:[{k:'nome',l:'Nome / Razão social',req:1},{k:'cnpj',l:'CNPJ'},{k:'inscricao',l:'Inscrição estadual'},{k:'telefone',l:'Telefone'},{k:'cidade',l:'Cidade'}],cols:[['Nome',r=>`<strong>${esc(r.nome)}</strong>`],['CNPJ',r=>esc(r.cnpj||'-')],['IE',r=>esc(r.inscricao||'-')],['Telefone',r=>esc(r.telefone||'-')],['Cidade',r=>esc(r.cidade||'-')]]},
  fornecedores:{s:'Fornecedor',f:[{k:'nome',l:'Nome / Razão social',req:1},{k:'cnpj',l:'CNPJ'},{k:'inscricao',l:'Inscrição estadual'},{k:'telefone',l:'Telefone'}],cols:[['Nome',r=>`<strong>${esc(r.nome)}</strong>`],['CNPJ',r=>esc(r.cnpj||'-')],['IE',r=>esc(r.inscricao||'-')],['Telefone',r=>esc(r.telefone||'-')]]},
@@ -536,6 +553,7 @@ function formEntidade(e,id){
     if(f.t==='number')inp=`<input type="number" id="${idf}" step="${f.step||1}" value="${val==null?'':val}">`;
     else if(f.t==='color')inp=`<input type="color" id="${idf}" value="${esc(val||'#3b82f6')}">`;
     else if(f.t==='cat')inp=`<input id="${idf}" list="dlcat" value="${esc(val||'')}"><datalist id="dlcat">${categorias().map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`;
+    else if(f.t==='sel')inp=`<select id="${idf}">${f.o.map(o=>`<option value="${o[0]}" ${val===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`;
     else if(f.t==='senha')inp=`<input type="password" id="${idf}" autocomplete="new-password" placeholder="${rec?'(manter atual)':'mín. 6 caracteres'}">`;
     else if(f.t==='role')inp=`<select id="${idf}"><option value="vendedor" ${val==='vendedor'?'selected':''}>Vendedor (vê só os próprios pedidos)</option><option value="admin" ${val==='admin'?'selected':''}>Administrador</option></select>`;
     else if(f.t==='rep')inp=`<select id="${idf}"><option value="">— nenhum —</option>${opts(db.representantes,val,r=>r.nome,r=>r.nome)}</select>`;
@@ -543,9 +561,10 @@ function formEntidade(e,id){
     return `<div class="fg" style="margin-bottom:10px"><label>${f.l}${f.req?' *':''}</label>${inp}</div>`};
   const fields=E.f.map(campo).join('');
   openModal(`${rec?'Editar':'Novo'} ${E.s.toLowerCase()}`,`<form id="entForm">${fields}<div class="acts"><button class="btn b-p" type="submit"><i class="fas fa-save"></i> Salvar</button><button type="button" class="btn b-o" data-act="closeModal">Cancelar</button></div></form>`);
+  if(e==='produtos'){const sm=$('#f_comModo'),sp=$('#f_comPerc'),upd=()=>{sp.disabled=sm.value!=='propria'};sm.onchange=upd;upd()}
   $('#entForm').onsubmit=async ev=>{ev.preventDefault();const out={};
     for(const f of E.f){const el=$('#f_'+f.k);let val;
-      if(f.t==='bool')val=el.checked;else if(f.t==='number')val=num(el.value);else val=el.value.trim();
+      if(f.t==='bool')val=el.checked;else if(f.t==='number')val=num(el.value);else if(f.t==='sel')val=el.value;else val=el.value.trim();
       if(f.lower)val=val.toLowerCase();
       if(f.req&&(val===''||val==null)){toast(`Preencha: ${f.l}`,true);return}
       if(f.uniq&&st.some(r=>r.id!==id&&String(r[f.k]).toLowerCase()===String(val).toLowerCase())){toast(`${f.l} já existe.`,true);return}
@@ -556,8 +575,8 @@ function formEntidade(e,id){
       if(rec&&pw&&pw.length<6){toast('A senha precisa de ao menos 6 caracteres.',true);return}
       if(rec&&rec.id===user.id&&out.role!=='admin'){toast('Você não pode remover seu próprio acesso de administrador.',true);return}
       if(pw){out.salt=uid()+uid();out.hash=await hashPw(pw,out.salt)}}
-    if(rec){Object.assign(rec,out);if(e==='representantes'){}}else st.push(Object.assign({id:uid()},out));
-    saveNow();closeModal();toast(`${E.s} salvo!`);
+    if(rec){if(e==='representantes'&&rec.nome!==out.nome){db.pedidos.forEach(p=>{if(p.repNome===rec.nome)p.repNome=out.nome});db.users.forEach(u=>{if(u.repNome===rec.nome)u.repNome=out.nome});if(user.repNome===rec.nome)user.repNome=out.nome}Object.assign(rec,out)}else st.push(Object.assign({id:uid()},out));
+    saveNow();closeModal();toast(`${E.s} salvo!`);if(e==='cores')renderSwatches();
     if(e==='usuarios')VIEWS.config.after();else if(VIEWS[e]&&location.hash.slice(1)===e)cadTable(e);
     if(e==='produtos'&&location.hash.slice(1)==='estoque')go('estoque')}}
 function excluirEntidade(e,id){const st=db[storeOf(e)],rec=st.find(r=>r.id===id);if(!rec)return;
@@ -566,22 +585,20 @@ function excluirEntidade(e,id){const st=db[storeOf(e)],rec=st.find(r=>r.id===id)
   if(e==='clientes'&&db.pedidos.some(p=>p.clienteId===id)&&!confirm('Este cliente possui pedidos. Os pedidos mantêm os dados dele, mas ele sairá do cadastro. Excluir?'))return;
   else if(!(e==='clientes'&&db.pedidos.some(p=>p.clienteId===id))&&!confirm(`Excluir ${ENT[e].s.toLowerCase()} "${rec.nome||rec.codigo||rec.transportadora}"?`))return;
   db[storeOf(e)]=st.filter(r=>r.id!==id);if(e==='produtos')db.movs=db.movs.filter(m=>m.produtoId!==id);
-  saveNow();toast('Excluído.');if(e==='usuarios')VIEWS.config.after();else cadTable(e)}
+  saveNow();toast('Excluído.');if(e==='cores')renderSwatches();if(e==='usuarios')VIEWS.config.after();else cadTable(e)}
 
 /* ---------- Configurações ---------- */
 VIEWS.config={html(){const c=db.config;return `<div class="card"><h3><i class="fas fa-sliders"></i> Parâmetros</h3><div class="row">
   <div class="fg"><label>Nome da empresa</label><input id="cfEmp" value="${esc(c.empresa)}"></div>
   <div class="fg"><label>ICMS padrão em novos pedidos (%)</label><input type="number" step="0.01" id="cfIcms" value="${c.icmsAliq}"></div>
-  <div class="fg"><label>Comissão padrão em novos produtos (%)</label><input type="number" step="0.01" id="cfCom" value="${c.comPerc}"></div>
-  <div class="fg"><label>Lucro estimado (% da base)</label><input type="number" step="0.01" id="cfLuc" value="${c.lucroPerc}"></div>
   <div class="fg"><label>Margem de contribuição (%)</label><input type="number" step="0.01" id="cfMc" value="${c.mcPerc}"></div>
   <div class="fg"><label>Orientação do PDF</label><select id="cfOr"><option value="portrait" ${c.orient==='portrait'?'selected':''}>Retrato</option><option value="landscape" ${c.orient==='landscape'?'selected':''}>Paisagem</option></select></div></div>
-  <label class="chk"><input type="checkbox" id="cfIcmsOn" ${c.icmsAtivo?'checked':''}> Aplicar ICMS por padrão em novos pedidos</label>
+  <div class="note" style="margin:0 0 10px">As taxas de comissão e de lucro ficam na tela Comissões & Vendas.</div><label class="chk"><input type="checkbox" id="cfIcmsOn" ${c.icmsAtivo?'checked':''}> Aplicar ICMS por padrão em novos pedidos</label>
   <div class="acts"><button class="btn b-p" data-act="saveCfg"><i class="fas fa-save"></i> Salvar parâmetros</button></div></div>
   <div class="card"><h3><i class="fas fa-users-gear"></i> Usuários do sistema</h3><div class="fbar"><button class="btn b-p" style="flex:0 0 auto" data-act="novo" data-e="usuarios"><i class="fas fa-user-plus"></i> Novo usuário</button></div><div class="tw" id="tb_usuarios"></div>
   <div class="note">Vendedores só enxergam os pedidos que criaram ou que pertencem ao representante vinculado, e não acessam Configurações nem Backup.</div></div>`},
  after(){cadTable('usuarios',$('#tb_usuarios'))}};
-function saveCfg(){const c=db.config;c.empresa=$('#cfEmp').value.trim()||c.empresa;c.icmsAliq=clamp($('#cfIcms').value);c.comPerc=clamp($('#cfCom').value);c.lucroPerc=clamp($('#cfLuc').value);c.mcPerc=clamp($('#cfMc').value);c.orient=$('#cfOr').value;c.icmsAtivo=$('#cfIcmsOn').checked;saveNow();toast('Parâmetros salvos!')}
+function saveCfg(){const c=db.config;c.empresa=$('#cfEmp').value.trim()||c.empresa;c.icmsAliq=clamp($('#cfIcms').value);c.mcPerc=clamp($('#cfMc').value);c.orient=$('#cfOr').value;c.icmsAtivo=$('#cfIcmsOn').checked;if(!draft.itens.length&&!draft.editId&&!draft.clienteId&&!draft.obs&&!num(draft.entrada)&&!num(draft.desc)){draft=newDraft();db.draft=null}saveNow();toast('Parâmetros salvos!')}
 
 /* ---------- Backup ---------- */
 VIEWS.backup={html(){const c=db.config.lastBackup;return `<div class="card"><h3><i class="fas fa-database"></i> Backup e restauração</h3>
@@ -595,7 +612,7 @@ function bkDown(deSaida){db.config.lastBackup=new Date().toISOString();saveNow()
 function dmy(s){const m=String(s||'').split('/');return m.length===3?`${m[2]}-${pad(m[1])}-${pad(m[0])}`:hoje()}
 function converterLegado(d){
   const n=defaultDB(),cMap={},pMap={};
-  (d.catalogo||d.produtos||[]).forEach(p=>{const id=uid();pMap[p.codigo]=id;n.produtos.push({id,codigo:String(p.codigo),nome:p.nome,categoria:p.categoria||'',preco:num(p.preco),comAtiva:p.comissaoAtiva!==false,comPerc:p.comissaoPercent!=null?num(p.comissaoPercent):5,controlaEstoque:false,estoqueInicial:0,estoqueMin:0})});
+  (d.catalogo||d.produtos||[]).forEach(p=>{const id=uid();pMap[p.codigo]=id;n.produtos.push({id,codigo:String(p.codigo),nome:p.nome,categoria:p.categoria||'',preco:num(p.preco),comModo:p.comissaoAtiva===false?'nenhuma':(p.comissaoPercent!=null&&num(p.comissaoPercent)!==(d.comissaoPercent!=null?num(d.comissaoPercent):5)?'propria':'geral'),comPerc:p.comissaoPercent!=null?num(p.comissaoPercent):5,controlaEstoque:false,estoqueInicial:0,estoqueMin:0})});
   (d.cores||[]).forEach(c=>n.cores.push({id:uid(),codigo:c.codigo,nome:c.nome,hex:c.hex||'#888888',ref:c.referencia||''}));
   (d.clientes||[]).forEach(c=>{const id=uid();cMap[c.id]=id;n.clientes.push({id,nome:c.nome,cnpj:c.cnpj||'',inscricao:c.inscricao||'',telefone:c.telefone||'',cidade:c.cidade||''})});
   (d.fornecedores||[]).forEach(f=>n.fornecedores.push({id:uid(),nome:f.nome,cnpj:f.cnpj||'',inscricao:f.inscricao||'',telefone:f.telefone||''}));
@@ -603,24 +620,24 @@ function converterLegado(d){
   const reps=new Set(d.representantes||[]);(d.historico||[]).forEach(h=>h.representante&&reps.add(h.representante));reps.forEach(r=>n.representantes.push({id:uid(),nome:r}));
   const g=d.comissaoPercent!=null?num(d.comissaoPercent):5;
   (d.historico||[]).forEach(h=>{
-    const itens=(h.itens||[]).map(i=>{const prod=n.produtos.find(x=>x.codigo===String(i.codigo));return {produtoId:prod?prod.id:'',codigo:String(i.codigo),nome:i.nome,categoria:i.categoria||'',corCod:i.cor||'',qtd:num(i.quantidade),unit:num(i.unitario),total:num(i.total),comPerc:prod?(prod.comAtiva?prod.comPerc:0):g}});
+    const itens=(h.itens||[]).map(i=>{const prod=n.produtos.find(x=>x.codigo===String(i.codigo));return {produtoId:prod?prod.id:'',codigo:String(i.codigo),nome:i.nome,categoria:i.categoria||'',corCod:i.cor||'',qtd:num(i.quantidade),unit:num(i.unitario),total:num(i.total)}});
     const aliq=h.aliquotaICMS!=null?num(h.aliquotaICMS):0,ativo=h.icmsAtivo!==false&&aliq>0;
     const t=calc({itens,desc:h.descontoPercent||0,entrada:h.entrada||0,icmsAtivo:ativo,icmsAliq:aliq});
     const cl=h.cliente||{};
     const p={id:uid(),numero:h.numero,data:dmy(h.data),hora:h.hora||'',criadoPor:'',clienteId:cMap[cl.id]||'',clienteSnap:{nome:cl.nome||'—',cnpj:cl.cnpj||'',inscricao:cl.inscricao||'',telefone:cl.telefone||'',cidade:cl.cidade||''},repNome:h.representante||'',status:STATUS.includes(h.status)?h.status:'Em andamento',parcelamento:PARC[h.parcelamento]?h.parcelamento:'À vista',venc:h.vencimento||'',obsPag:h.formaPagamentoObs||'',obs:h.observacao||'',itens,desc:t.descP,entrada:t.entrada,icmsAtivo:ativo,icmsAliq:t.aliq,subtotal:t.sub,descValor:t.descV,base:t.base,imposto:t.imposto,total:t.total,saldo:t.saldo};
-    p.comissao=comissaoPedido(p);p.parcelas=gerarParcelas(p);n.pedidos.push(p)});
+    p.parcelas=gerarParcelas(p);n.pedidos.push(p)});
   Object.assign(n.config,{comPerc:g,lucroPerc:d.lucroPercent!=null?num(d.lucroPercent):21,icmsAliq:d.aliquotaICMSAtual!=null?num(d.aliquotaICMSAtual):7,icmsAtivo:d.icmsAtivo!==false,orient:d.orientacaoPDF||'portrait',empresa:(d._meta&&d._meta.sistema)||n.config.empresa});
   return n}
 function restaurar(ev){const f=ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{
   const d=JSON.parse(rd.result);let n,tipo;
-  if(d.versao===3&&Array.isArray(d.produtos)&&Array.isArray(d.pedidos)){n=Object.assign(defaultDB(),d);n.config=Object.assign(defaultDB().config,d.config||{});tipo='deste sistema (v3)'}
+  if(d.versao===3&&Array.isArray(d.produtos)&&Array.isArray(d.pedidos)){n=Object.assign(defaultDB(),d);n.config=Object.assign(defaultDB().config,d.config||{});migrarDB(n);tipo='deste sistema (v3)'}
   else if(d.catalogo||d.produtos||d.historico){n=converterLegado(d);tipo='do sistema antigo (será convertido)'}
   else throw new Error('Arquivo não reconhecido.');
   if(!confirm(`Backup ${tipo}\n\n• ${n.produtos.length} produtos\n• ${n.cores.length} cores\n• ${n.clientes.length} clientes\n• ${n.pedidos.length} pedidos\n\nIsso SUBSTITUI os dados atuais (usuários ${tipo.startsWith('deste')?'incluídos':'atuais são mantidos'}). Continuar?`))return;
   if(!tipo.startsWith('deste'))n.users=db.users;
   const meu=user.id;db=n;if(!db.users.some(u=>u.id===meu)){saveNow();toast('Backup restaurado. Faça login novamente.');return setTimeout(sair,1200)}
   user=db.users.find(u=>u.id===meu);draft=newDraft();db.draft=null;saveNow();toast('Backup restaurado!');go('backup')}catch(e){toast('Erro ao restaurar: '+e.message,true)}};rd.readAsText(f);ev.target.value=''}
-function bkZero(){if(!confirm('Apagar TODOS os dados do sistema (inclusive usuários)?'))return;if(!confirm('Tem certeza? Baixe um backup antes. Esta ação não pode ser desfeita.'))return;localStorage.removeItem(KEY);localStorage.removeItem(SESS);location.reload()}
+function bkZero(){if(!confirm('Apagar TODOS os dados do sistema (inclusive usuários)?'))return;if(!confirm('Tem certeza? Baixe um backup antes. Esta ação não pode ser desfeita.'))return;window.__zerando=true;clearTimeout(saveT);localStorage.removeItem(KEY);localStorage.removeItem(SESS);location.reload()}
 
 /* ================= Modal ================= */
 function openModal(title,body){$('#modalRoot').innerHTML=`<div class="modal" id="mdl"><div class="mbox"><h3>${esc(title)} <button class="x" data-act="closeModal">&times;</button></h3>${body}</div></div>`}
@@ -644,7 +661,7 @@ document.addEventListener('click',e=>{
    addMov:()=>{const q=Math.floor(num($('#mQ').value));if(q<1)return toast('Quantidade inválida.',true);db.movs.push({id:uid(),produtoId:$('#mP').value,tipo:$('#mT').value,qtd:q,data:hoje(),obs:$('#mO').value.trim()});saveNow();go('estoque');toast('Movimentação registrada!')},
    delMov:()=>{if(!confirm('Excluir esta movimentação?'))return;db.movs=db.movs.filter(m=>m.id!==id);saveNow();go('estoque')},
    expCSV,expXLS,expPDF,novo:()=>formEntidade(b.dataset.e),editar:()=>formEntidade(b.dataset.e,id),excluir:()=>excluirEntidade(b.dataset.e,id),
-   saveCfg,sairComBackup:()=>{bkDown(true);toast('Backup baixado. Saindo…');setTimeout(sair,900)},sairAgora:sair,bkDown,bkUp:()=>$('#bkFile').click(),bkZero};
+   saveCfg,aplicarCom:aplicarComissao,sairComBackup:()=>{bkDown(true);toast('Backup baixado. Saindo…');setTimeout(sair,900)},sairAgora:sair,bkDown,bkUp:()=>$('#bkFile').click(),bkZero};
   if(A[a])A[a]()});
 document.addEventListener('input',e=>{
   const t=e.target,k=t.dataset&&t.dataset.d;if(!k||!draft)return;
